@@ -1,0 +1,183 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Fargate Worker com autoscaling por CPU e Memória
+
+Resources:
+
+  ###########################################
+  # CLUSTER
+  ###########################################
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: worker-cluster
+
+  ###########################################
+  # TASK DEFINITION (WORKER)
+  ###########################################
+  WorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: worker-task
+      Cpu: 512
+      Memory: 1024
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !Ref ECSTaskExecutionRole
+      TaskRoleArn: !Ref WorkerTaskRole
+      ContainerDefinitions:
+        - Name: worker
+          Image: "nginx:latest" # TROQUE PELA SUA IMAGEM WORKER
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref WorkerLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: worker
+
+  ###########################################
+  # LOG GROUP
+  ###########################################
+  WorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/worker
+      RetentionInDays: 7
+
+  ###########################################
+  # SECURITY GROUP (WORKER NÃO EXPÕE PORTA)
+  ###########################################
+  WorkerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Worker SG
+      VpcId: vpc-123456 # <--- TROQUE PARA O SEU
+      SecurityGroupIngress: []
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+
+  ###########################################
+  # ECS SERVICE (WORKER)
+  ###########################################
+  WorkerService:
+    Type: AWS::ECS::Service
+    DependsOn: ECSCluster
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: worker-service
+      LaunchType: FARGATE
+      DesiredCount: 1
+      TaskDefinition: !Ref WorkerTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref WorkerSG
+          Subnets:
+            - subnet-aaaa # <--- TROQUE
+            - subnet-bbbb # <--- TROQUE
+
+  ###########################################
+  # AUTOSCALING CONFIG
+  ###########################################
+  WorkerScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: 5
+      MinCapacity: 1
+      ResourceId: !Join ["", ["service/", !Ref ECSCluster, "/", !GetAtt WorkerService.Name]]
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !GetAtt ApplicationAutoScalingRole.Arn
+
+  ###########################################
+  # AUTO SCALING POLICY — CPU TARGET TRACKING
+  ###########################################
+  CPUScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: worker-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref WorkerScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 60  # Escala se o worker passa de 60% CPU
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 60
+        ScaleOutCooldown: 60
+
+  ###########################################
+  # AUTO SCALING POLICY — MEMORY TARGET TRACKING
+  ###########################################
+  MemoryScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: worker-memory-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref WorkerScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 70  # Escala se a memória passa de 70%
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+        ScaleInCooldown: 60
+        ScaleOutCooldown: 60
+
+  ###########################################
+  # IAM: ROLE EXECUÇÃO (Puxa imagem + logs)
+  ###########################################
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  ###########################################
+  # IAM: ROLE DO WORKER (PERMISSÕES DA APP)
+  ###########################################
+  WorkerTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: worker-inline
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: "*"   # <--- TROQUE PARA SUA SQS ESPECÍFICA
+
+
+  ###########################################
+  # IAM: AUTO SCALING ROLE
+  ###########################################
+  ApplicationAutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceAutoscaleRole
