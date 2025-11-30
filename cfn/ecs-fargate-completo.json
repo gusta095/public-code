@@ -1,0 +1,216 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "ECS Cluster Fargate-Only - Base Template",
+
+  "Resources": {
+    "ECSCluster": {
+      "Type": "AWS::ECS::Cluster",
+      "Properties": {
+        "ClusterName": "gusta-cluster",
+        "CapacityProviders": [
+          "FARGATE"
+        ]
+      }
+    },
+    "LogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/ecs/gusta-cluster",
+        "RetentionInDays": 30
+      }
+    },
+    "ECSTaskExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "TaskExecutionRole-gusta-cluster",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+        ]
+      }
+    },
+    "ECSTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": "TaskDefinition-gusta-cluster",
+        "Cpu": "256",
+        "Memory": "512",
+        "NetworkMode": "awsvpc",
+        "RequiresCompatibilities": [
+          "FARGATE"
+        ],
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": ["ECSTaskExecutionRole", "Arn"]
+        },
+        "ContainerDefinitions": [
+          {
+            "Name": "ContainerAPI-gusta-cluster",
+            "Image": "nginx:latest",
+            "Essential": true,
+            "PortMappings": [
+              {
+                "ContainerPort": 80,
+                "Protocol": "tcp"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "ALBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Permite trafego HTTP publico para o ALB",
+        "VpcId": "vpc-0f1c78c8d075912ba",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 80,
+            "ToPort": 80,
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "Tags": [
+          { "Key": "Name", "Value": "SG-ALB-gusta-cluster" }
+        ]
+      }
+    },
+    "EcsServiceSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Permite trafego do ALB para o ECS Service",
+        "VpcId": "vpc-0f1c78c8d075912ba",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 80,
+            "ToPort": 80,
+            "SourceSecurityGroupId": {
+              "Ref": "ALBSecurityGroup"
+            }
+          }
+        ],
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "Tags": [
+          { "Key": "Name", "Value": "SG-ECS-gusta-cluster" }
+        ]
+      }
+    },
+    "ALB": {
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Properties": {
+        "Name": "MeuALBFargate",
+        "Scheme": "internet-facing",
+        "Subnets": [
+          "subnet-0fe686cf6fc66e96f",
+          "subnet-010c553ad47b195cb",
+          "subnet-0a4e5a98607953cd3"
+        ],
+        "SecurityGroups": [
+          { "Ref": "ALBSecurityGroup" }
+        ],
+        "Type": "application"
+      }
+    },
+    "ALBTargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "Name": "TG-gusta-cluster",
+        "Port": 80,
+        "Protocol": "HTTP",
+        "VpcId": "vpc-0f1c78c8d075912ba",
+        "TargetType": "ip",
+        "HealthCheckPath": "/",
+        "HealthCheckProtocol": "HTTP"
+      }
+    },
+    "ALBListener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "LoadBalancerArn": { "Ref": "ALB" },
+        "Port": 80,
+        "Protocol": "HTTP",
+        "DefaultActions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": { "Ref": "ALBTargetGroup" }
+          }
+        ]
+      }
+    },
+    "ALBListenerRuleAPIA": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "ListenerArn": { "Ref": "ALBListener" },
+        "Priority": 10,
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "Values": ["/api-a/*"]
+          }
+        ],
+        "Actions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": { "Ref": "ALBTargetGroup" }
+          }
+        ]
+      }
+    },
+    "ECSService": {
+      "Type": "AWS::ECS::Service",
+      "DependsOn": "ALBListener",
+      "Properties": {
+        "ServiceName": "ServiceMinhaAPI-gusta-cluster",
+        "Cluster": { "Ref": "ECSCluster" },
+        "TaskDefinition": { "Ref": "ECSTaskDefinition" },
+        "LaunchType": "FARGATE",
+        "DesiredCount": 1,
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "ENABLED",
+            "SecurityGroups": [
+              { "Ref": "EcsServiceSecurityGroup" }
+            ],
+            "Subnets": [
+              "subnet-0fe686cf6fc66e96f",
+              "subnet-010c553ad47b195cb",
+              "subnet-0a4e5a98607953cd3"
+            ]
+          }
+        },
+        "LoadBalancers": [
+          {
+            "ContainerName": "ContainerAPI-gusta-cluster",
+            "ContainerPort": 80,
+            "TargetGroupArn": { "Ref": "ALBTargetGroup" }
+          }
+        ]
+      }
+    }
+  }
+}
+
+// cluster fargate-only -> task execution role -> task definition -> security groups task -> security groups alb -> alb -> target group -> listener -> listener rule -> ecs service
