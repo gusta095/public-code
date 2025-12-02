@@ -1,0 +1,50 @@
+alb_loadbalancer:
+  name: plataforma-alb
+  scheme: internet-facing
+  type: application
+
+  # Target Groups para cada aplicação
+  targets_groups:
+    - target_group_name: tg-api-a
+      path_pattern: /api-a/*
+      priority: 10
+      port: 80
+      protocol: HTTP
+
+      health_check: /health
+      health_check_port: 80
+      health_check_protocol: HTTP
+      health_check_interval: 30
+      health_check_timeout: 5
+      healthy_threshold: 3
+      unhealthy_threshold: 2
+
+    - target_group_name: tg-api-b
+      path_pattern: /api-b/*
+      priority: 20
+      port: 80
+      protocol: HTTP
+
+      health_check: /status
+      health_check_port: 80
+      health_check_protocol: HTTP
+      health_check_interval: 20
+      health_check_timeout: 3
+      healthy_threshold: 3
+      unhealthy_threshold: 2
+
+  # Listeners do ALB
+  listeners:
+    - port: 80
+      protocol: HTTP
+      default_actions:
+        - type: forward
+          target_group_name: tg-api-a  # default (fallback)
+
+    # Exemplo caso futuramente você adicione HTTPS:
+    # - port: 443
+    #   protocol: HTTPS
+    #   certificate_arn: arn:aws:acm:us-east-1:123456789012:certificate/xxxx
+    #   default_actions:
+    #     - type: forward
+    #       target_group_name: tg-api-a

@@ -1,0 +1,96 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "ALB + Target Groups + Listeners gerados via contrato",
+
+  "Resources": {
+
+    {% for item in create_alb.outputs.alb_loadbalancer.albs %}
+    "{{ create_alb.outputs.alb_loadbalancer.albs[item].name }}": {
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Properties": {
+        "Name": "{{ create_alb.outputs.alb_loadbalancer.albs[item].name }}",
+        "Scheme": "{{ create_alb.outputs.alb_loadbalancer.albs[item].scheme }}",
+        "Type": "{{ create_alb.outputs.alb_loadbalancer.albs[item].type }}",
+        "Subnets": [
+          "subnet-0fe686cf6fc66e96f",
+          "subnet-010c553ad47b195cb",
+          "subnet-0a4e5a98607953cd3"
+        ],
+        "SecurityGroups": [
+          { "Ref": "ALBSecurityGroup" }
+        ]
+      }
+    },
+
+    {% for tg in create_alb.outputs.alb_loadbalancer.albs[item].targets_groups %}
+    "{{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].target_group_name }}": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "Name": "{{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].target_group_name }}",
+        "Port": {{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].port }},
+        "Protocol": "{{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].protocol }}",
+        "VpcId": "vpc-0f1c78c8d075912ba",
+        "TargetType": "ip",
+        "HealthCheckPath": "{{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].health_check }}",
+        "HealthCheckPort": "{{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].health_check_port }}",
+        "HealthCheckProtocol": "{{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].health_check_protocol }}",
+        "HealthCheckIntervalSeconds": {{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].health_check_interval }},
+        "HealthCheckTimeoutSeconds": {{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].health_check_timeout }},
+        "HealthyThresholdCount": {{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].healthy_threshold }},
+        "UnhealthyThresholdCount": {{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].unhealthy_threshold }}
+      }
+    },
+    {% endfor %}
+
+    {% for listener in create_alb.outputs.alb_loadbalancer.albs[item].listeners %}
+    "{{ create_alb.outputs.alb_loadbalancer.albs[item].name }}-listener-{{ create_alb.outputs.alb_loadbalancer.albs[item].listeners[listener].port }}": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "LoadBalancerArn": { "Ref": "{{ create_alb.outputs.alb_loadbalancer.albs[item].name }}" },
+        "Port": {{ create_alb.outputs.alb_loadbalancer.albs[item].listeners[listener].port }},
+        "Protocol": "{{ create_alb.outputs.alb_loadbalancer.albs[item].listeners[listener].protocol }}",
+        "DefaultActions": [
+          {% for action in create_alb.outputs.alb_loadbalancer.albs[item].listeners[listener].default_actions %}
+          {
+            "Type": "{{ create_alb.outputs.alb_loadbalancer.albs[item].listeners[listener].default_actions[action].type }}",
+            "TargetGroupArn": {
+              "Ref": "{{ create_alb.outputs.alb_loadbalancer.albs[item].listeners[listener].default_actions[action].target_group_name }}"
+            }
+          }{% if not loop.last %},{% endif %}
+          {% endfor %}
+        ]
+      }
+    },
+    {% endfor %}
+
+    {% for tg in create_alb.outputs.alb_loadbalancer.albs[item].targets_groups %}
+    "{{ create_alb.outputs.alb_loadbalancer.albs[item].name }}-rule-{{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].priority }}": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "ListenerArn": {
+          "Ref": "{{ create_alb.outputs.alb_loadbalancer.albs[item].name }}-listener-80"
+        },
+        "Priority": {{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].priority }},
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "Values": [
+              "{{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].path_pattern }}"
+            ]
+          }
+        ],
+        "Actions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": {
+              "Ref": "{{ create_alb.outputs.alb_loadbalancer.albs[item].targets_groups[tg].target_group_name }}"
+            }
+          }
+        ]
+      }
+    }
+    {% endfor %}
+
+    {% endfor %}
+  }
+}
