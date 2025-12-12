@@ -56,11 +56,11 @@
         "ContainerDefinitions": [
           {
             "Name": "ContainerAPI-gusta-cluster",
-            "Image": "nginx:latest",
+            "Image": "gusta095/api-8282:latest",
             "Essential": true,
             "PortMappings": [
               {
-                "ContainerPort": 80,
+                "ContainerPort": 8282,
                 "Protocol": "tcp"
               }
             ]
@@ -105,6 +105,14 @@
             "SourceSecurityGroupId": {
               "Ref": "ALBSecurityGroup"
             }
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 8282,
+            "ToPort": 8282,
+            "SourceSecurityGroupId": {
+              "Ref": "ALBSecurityGroup"
+            }
           }
         ],
         "SecurityGroupEgress": [
@@ -138,7 +146,7 @@
       "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
       "Properties": {
         "Name": "TG-gusta-cluster",
-        "Port": 80,
+        "Port": 8282,
         "Protocol": "HTTP",
         "VpcId": "vpc-0f1c78c8d075912ba",
         "TargetType": "ip",
@@ -204,7 +212,7 @@
         "LoadBalancers": [
           {
             "ContainerName": "ContainerAPI-gusta-cluster",
-            "ContainerPort": 80,
+            "ContainerPort": 8282,
             "TargetGroupArn": { "Ref": "ALBTargetGroup" }
           }
         ]
