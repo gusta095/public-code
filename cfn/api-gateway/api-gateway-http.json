@@ -1,0 +1,54 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "API Gateway integrando com backend HTTP",
+
+  "Resources": {
+    "RestApi": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": "HttpBackendDemo"
+      }
+    },
+
+    "UsersResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi" },
+        "ParentId": { "Fn::GetAtt": ["RestApi", "RootResourceId"] },
+        "PathPart": "users"
+      }
+    },
+
+    "GetUsersMethod": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi" },
+        "ResourceId": { "Ref": "UsersResource" },
+        "HttpMethod": "GET",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Type": "HTTP_PROXY",
+          "IntegrationHttpMethod": "GET",
+          "Uri": "https://jsonplaceholder.typicode.com/users"
+        }
+      }
+    },
+
+    "Deployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "DependsOn": "GetUsersMethod",
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi" },
+        "StageName": "dev"
+      }
+    }
+  },
+
+  "Outputs": {
+    "InvokeURL": {
+      "Value": {
+        "Fn::Sub": "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/dev/users"
+      }
+    }
+  }
+}
