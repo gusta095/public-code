@@ -1,0 +1,94 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "API Gateway HTTP_PROXY para /users e /users/{id}",
+
+  "Resources": {
+    "RestApi": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": "UsersProxyAPI"
+      }
+    },
+
+    "UsersResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi" },
+        "ParentId": { "Fn::GetAtt": ["RestApi", "RootResourceId"] },
+        "PathPart": "users"
+      }
+    },
+
+    "UserIdResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi" },
+        "ParentId": { "Ref": "UsersResource" },
+        "PathPart": "{id}"
+      }
+    },
+
+    "GetUsersMethod": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi" },
+        "ResourceId": { "Ref": "UsersResource" },
+        "HttpMethod": "GET",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Type": "HTTP_PROXY",
+          "IntegrationHttpMethod": "GET",
+          "Uri": "https://jsonplaceholder.typicode.com/users"
+        }
+      }
+    },
+
+    "GetUserByIdMethod": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi" },
+        "ResourceId": { "Ref": "UserIdResource" },
+        "HttpMethod": "GET",
+        "AuthorizationType": "NONE",
+        "RequestParameters": {
+          "method.request.path.id": true
+        },
+        "Integration": {
+          "Type": "HTTP_PROXY",
+          "IntegrationHttpMethod": "GET",
+          "Uri": "https://jsonplaceholder.typicode.com/users/{id}",
+          "RequestParameters": {
+            "integration.request.path.id": "method.request.path.id"
+          }
+        }
+      }
+    },
+
+    "Deployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "DependsOn": [
+        "GetUsersMethod",
+        "GetUserByIdMethod"
+      ],
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi" },
+        "StageName": "dev"
+      }
+    }
+  },
+
+  "Outputs": {
+    "ListUsersURL": {
+      "Description": "GET /users",
+      "Value": {
+        "Fn::Sub": "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/dev/users"
+      }
+    },
+    "GetUserByIdURL": {
+      "Description": "GET /users/{id}",
+      "Value": {
+        "Fn::Sub": "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/dev/users/{id}"
+      }
+    }
+  }
+}
