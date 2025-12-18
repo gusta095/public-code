@@ -1,0 +1,30 @@
+{% for resource in create_api_gateway.output.api_gateway.gateways[item].properties.resource %}
+{% set parts = resource.path.strip('/').split('/') %}
+{% set full_path = "" %}
+
+{% for part in parts %}
+{% set parent_path = full_path %}
+{% set full_path = full_path + "/" + part %}
+
+"{{ full_path | replace('/', '') }}Resource": {
+  "Type": "AWS::ApiGateway::Resource",
+  "Properties": {
+    "RestApiId": { "Ref": "{{ item | replace('-', '') }}ApiGateway" },
+    "ParentId":
+      {% if parent_path == "" %}
+      { "Fn::GetAtt": ["{{ item | replace('-', '') }}ApiGateway", "RootResourceId"] }
+      {% else %}
+      { "Ref": "{{ parent_path | replace('/', '') }}Resource" }
+      {% endif %},
+    "PathPart": "{{ part }}"
+  }
+},
+{% endfor %}
+{% endfor %}
+
+
+{% set method_resource = resource.path.strip('/').replace('/', '') %}
+
+"ResourceId": {
+  "Ref": "{{ method_resource }}Resource"
+}
