@@ -40,6 +40,36 @@ resource "aws_iam_role_policy_attachment" "databricks_role_attach" {
   policy_arn = aws_iam_policy.databricks_policy.arn
 }
 
+# Security Group para permitir tráfego entre sua VPC e os endpoints
+resource "aws_security_group" "vpce_sg" {
+  name        = "databricks‐privatelink‐sg"
+  description = "Permite tráfego entre a VPC e os endpoints Databricks"
+  vpc_id      = var.vpc_id
+
+  # Permissões mínimas (ajuste conforme sua política)
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr_block]
+  }
+
+  # Comunicação interna entre recursos com o mesmo SG
+  ingress {
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
+    self      = true
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
 # VPC Endpoint para o Workspace/REST API (fronteira de PrivateLink)
 resource "aws_vpc_endpoint" "databricks_workspace_api" {
   vpc_id            = var.vpc_id
@@ -62,28 +92,6 @@ resource "aws_vpc_endpoint" "databricks_scc_relay" {
   security_group_ids = [aws_security_group.vpce_sg.id]
 
   private_dns_enabled = true
-}
-
-# Security Group para permitir tráfego entre sua VPC e os endpoints
-resource "aws_security_group" "vpce_sg" {
-  name        = "databricks‐privatelink‐sg"
-  description = "Permite tráfego entre a VPC e os endpoints Databricks"
-  vpc_id      = var.vpc_id
-
-  # Permissões mínimas (ajuste conforme sua política)
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr_block]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 }
 
 variable "vpc_id" {
