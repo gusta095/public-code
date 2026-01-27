@@ -1,0 +1,51 @@
+---
+- name: Teste simples de remoção e adição de statement em bucket policy
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    bucket_name: meu-bucket-exemplo
+
+    # Sid (cidename) que será REMOVIDO
+    sid_to_remove: OldStatementSid
+
+    # Statement que será ADICIONADO
+    statement_to_add:
+      Sid: NewStatementSid
+      Effect: Allow
+      Principal:
+        AWS: "arn:aws:iam::123456789012:root"
+      Action:
+        - s3:GetObject
+      Resource:
+        - "arn:aws:s3:::meu-bucket-exemplo/*"
+
+  tasks:
+
+    - name: Get bucket policy
+      command: aws s3api get-bucket-policy --bucket {{ bucket_name }}
+      register: bucket_policy_raw
+      changed_when: false
+
+    - name: Parse policy (string JSON -> objeto)
+      set_fact:
+        policy_obj: "{{ bucket_policy_raw.stdout | from_json | json_query('Policy') | from_json }}"
+
+    - name: Remove statement pelo Sid
+      set_fact:
+        policy_statements: >-
+          {{
+            policy_obj.Statement
+            | rejectattr('Sid', 'equalto', sid_to_remove)
+            | list
+          }}
+
+    - name: Add novo statement
+      set_fact:
+        policy_statements: "{{ policy_statements + [ statement_to_add ] }}"
+
+    - name: Aplicar policy final no bucket
+      command: >
+        aws s3api put-bucket-policy
+        --bucket {{ bucket_name }}
+        --policy '{{ {"Version": policy_obj.Version, "Statement": policy_statements} | to_json }}'
