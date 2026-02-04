@@ -1,0 +1,9 @@
+[
+  {
+    "ResourceType": "AWS::SQS::Queue",
+    "LogicalResourceId": "OldQueue",
+    "ResourceIdentifier": {
+      "QueueUrl": "https://sqs.us-east-1.amazonaws.com/936943748055/my-imported-queue"
+    }
+  }
+]
