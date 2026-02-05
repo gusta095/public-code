@@ -26,3 +26,8 @@ aws cloudformation describe-change-set \
 aws cloudformation execute-change-set \
   --stack-name new-stack \
   --change-set-name import-sqs-final
+
+
+## Test
+
+sed -i '/Type: AWS::ApiGateway::RestApi/a\    DeletionPolicy: Retain' template.yaml
