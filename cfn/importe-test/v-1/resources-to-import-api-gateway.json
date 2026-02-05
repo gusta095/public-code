@@ -1,0 +1,9 @@
+[
+  {
+    "ResourceType": "AWS::ApiGateway::RestApi",
+    "LogicalResourceId": "MyApiGateway1",
+    "ResourceIdentifier": {
+      "RestApiId": "0ltouwi04i"
+    }
+  }
+]
