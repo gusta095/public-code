@@ -1,0 +1,11 @@
+{
+  "Resources": {
+    "MyApiGateway": {
+      "DeletionPolicy": "Retain",
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": "my-api-gateway-1"
+      }
+    }
+  }
+}
