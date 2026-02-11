@@ -1,0 +1,83 @@
+{
+  "Resources": {
+    "RestApi1": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": "HttpBackendDemo-1"
+      }
+    },
+
+    "UsersResource1": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi1" },
+        "ParentId": { "Fn::GetAtt": ["RestApi1", "RootResourceId"] },
+        "PathPart": "users"
+      }
+    },
+
+    "GetUsersMethod1": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi1" },
+        "ResourceId": { "Ref": "UsersResource1" },
+        "HttpMethod": "GET",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Type": "HTTP_PROXY",
+          "IntegrationHttpMethod": "GET",
+          "Uri": "https://jsonplaceholder.typicode.com/users"
+        }
+      }
+    },
+
+    "Deployment1": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "DependsOn": "GetUsersMethod1",
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi1" },
+        "StageName": "dev"
+      }
+    },
+
+    "RestApi2": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": "HttpBackendDemo-2"
+      }
+    },
+
+    "UsersResource2": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi2" },
+        "ParentId": { "Fn::GetAtt": ["RestApi2", "RootResourceId"] },
+        "PathPart": "users"
+      }
+    },
+
+    "GetUsersMethod2": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi2" },
+        "ResourceId": { "Ref": "UsersResource2" },
+        "HttpMethod": "GET",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Type": "HTTP_PROXY",
+          "IntegrationHttpMethod": "GET",
+          "Uri": "https://jsonplaceholder.typicode.com/users"
+        }
+      }
+    },
+
+    "Deployment2": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "DependsOn": "GetUsersMethod2",
+      "Properties": {
+        "RestApiId": { "Ref": "RestApi2" },
+        "StageName": "dev"
+      }
+    }
+  }
+}

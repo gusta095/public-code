@@ -1,0 +1,65 @@
+- name: Executar tarefas na minha própria máquina
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Ler template CloudFormation
+      set_fact:
+        cfn_template: "{{ lookup('file', './json-a.json') | from_json }}"
+
+    - name: Extrair Logical IDs de RestApi
+      set_fact:
+        rest_api_logical_ids: >-
+          {{
+            cfn_template.Resources
+            | dict2items
+            | selectattr('value.Type', 'equalto', 'AWS::ApiGateway::RestApi')
+            | map(attribute='key')
+            | list
+          }}
+
+    - name: Buscar APIs reais na AWS
+      command: aws apigateway get-rest-apis --output json
+      register: aws_apis_raw
+      changed_when: false
+
+    - name: Parse AWS APIs
+      set_fact:
+        aws_apis: "{{ aws_apis_raw.stdout | from_json }}"
+
+    - name: Mapear LogicalId -> RestApiId real
+      set_fact:
+        apigw_import_map: "{{ apigw_import_map | default({}) | combine({item: matched_id}) }}"
+      vars:
+        api_name: "{{ cfn_template.Resources[item].Properties.Name }}"
+        matched_id: >-
+          {{
+            (
+              aws_apis['items']
+              | selectattr('name','equalto', api_name)
+              | map(attribute='id')
+              | list
+              | first
+            ) | default('')
+          }}
+      loop: "{{ rest_api_logical_ids }}"
+
+    - name: Gerar JSON de import
+      set_fact:
+        apigw_import_payload: |
+          [
+          {% for logical_id, api_id in apigw_import_map.items() %}
+            {
+              "ResourceType": "AWS::ApiGateway::RestApi",
+              "LogicalResourceId": "{{ logical_id }}",
+              "ResourceIdentifier": {
+                "RestApiId": "{{ api_id }}"
+              }
+            }{% if not loop.last %},{% endif %}
+          {% endfor %}
+          ]
+
+    - name: Salvar arquivo import.json formatado
+      copy:
+        dest: "./apigw-import.json"
+        content: "{{ apigw_import_payload | to_nice_json }}"
