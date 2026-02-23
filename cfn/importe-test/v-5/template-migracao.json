@@ -1,0 +1,11 @@
+{
+    "Resources": {
+        "RestApi4": {
+            "DeletionPolicy": "Retain",
+            "Properties": {
+                "Name": "HttpBackendDemo-4"
+            },
+            "Type": "AWS::ApiGateway::RestApi"
+        }
+    }
+}

@@ -63,7 +63,7 @@
           debug:
             var: resource_stack_map
 
-#############################################################
+########## categorizar recursos do template CloudFormation baseado no mapa de decisão ###############
 
     - name: Ler template CloudFormation
       set_fact:
@@ -105,15 +105,16 @@
           }}
       loop: "{{ desired_resource_map | dict2items }}"
 
-###################################################################################
+########### Separa recursos em arquivos de migração e criação, baseado no mapa de decisão ###############
 
     - name: Garantir decision_map definido
       set_fact:
         decision_map: "{{ decision_map | default({}) }}"
 
-    - name: Inicializar filtered_resources
+    - name: Inicializar mapas separados
       set_fact:
-        filtered_resources: {}
+        migrate_resources: {}
+        create_resources: {}
 
     - name: Auditoria de decisão por recurso
       debug:
@@ -128,38 +129,45 @@
           }}
       loop: "{{ decision_map | dict2items }}"
 
-    - name: Filtrar recursos do template mantendo CRIAR e MIGRAR
+    - name: Separar recursos em MIGRAR e CRIAR
       set_fact:
-        filtered_resources: >-
+        migrate_resources: >-
           {{
-            filtered_resources |
+            migrate_resources |
             combine({ logical_id: resource_body })
+            if decision_map[resource_name] == 'MIGRAR'
+            else migrate_resources
+          }}
+        create_resources: >-
+          {{
+            create_resources |
+            combine({ logical_id: resource_body })
+            if decision_map[resource_name] == 'CRIAR'
+            else create_resources
           }}
       loop: "{{ template_json.Resources | dict2items }}"
       vars:
         logical_id: "{{ item.key }}"
         resource_body: "{{ item.value }}"
         resource_name: "{{ item.value.Properties.Name }}"
-      when:
-        - resource_name in decision_map
-        - decision_map[resource_name] in ['CRIAR','MIGRAR']
+      when: resource_name in decision_map
 
-    - name: Filtrar recursos do template mantendo apenas CRIAR e MIGRAR
-      set_fact:
-        filtered_template: >-
-          {{
-            template_json |
-            combine({
-              'Resources': filtered_resources
-            })
-          }}
-
-    - name: Gerar template final filtrado
+    - name: Gerar template de migracao
       copy:
         content: >-
           {{
             template_json |
-            combine({ 'Resources': filtered_resources }) |
+            combine({ 'Resources': migrate_resources }) |
             to_nice_json
           }}
-        dest: template-filtrado.json
+        dest: template-migracao.json
+
+    - name: Gerar template de criacao
+      copy:
+        content: >-
+          {{
+            template_json |
+            combine({ 'Resources': create_resources }) |
+            to_nice_json
+          }}
+        dest: template-criacao.json

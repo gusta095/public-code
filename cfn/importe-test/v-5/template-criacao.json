@@ -13,13 +13,6 @@
                 "Name": "database-2"
             },
             "Type": "AWS::ApiGateway::RestApi"
-        },
-        "RestApi4": {
-            "DeletionPolicy": "Retain",
-            "Properties": {
-                "Name": "HttpBackendDemo-4"
-            },
-            "Type": "AWS::ApiGateway::RestApi"
         }
     }
 }
