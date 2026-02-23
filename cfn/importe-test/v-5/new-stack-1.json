@@ -1,0 +1,18 @@
+{
+  "Resources": {
+    "RestApi1": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "Name": "Frontend-1"
+      }
+    },
+    "RestApi2": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "Name": "Frontend-2"
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "Resources": {
+    "Database1": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "Name": "database-1"
+      }
+    },
+    "Database2": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "Name": "database-2"
+      }
+    },
+    "RestApi2": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "Name": "Frontend-2"
+      }
+    },
+    "RestApi4": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "Name": "HttpBackendDemo-4"
+      }
+    }
+  }
+}

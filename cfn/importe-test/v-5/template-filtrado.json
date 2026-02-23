@@ -1,0 +1,25 @@
+{
+    "Resources": {
+        "Database1": {
+            "DeletionPolicy": "Retain",
+            "Properties": {
+                "Name": "database-1"
+            },
+            "Type": "AWS::ApiGateway::RestApi"
+        },
+        "Database2": {
+            "DeletionPolicy": "Retain",
+            "Properties": {
+                "Name": "database-2"
+            },
+            "Type": "AWS::ApiGateway::RestApi"
+        },
+        "RestApi4": {
+            "DeletionPolicy": "Retain",
+            "Properties": {
+                "Name": "HttpBackendDemo-4"
+            },
+            "Type": "AWS::ApiGateway::RestApi"
+        }
+    }
+}

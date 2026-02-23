@@ -1,0 +1,165 @@
+- name: Engine de descoberta de recursos AWS
+  hosts: localhost
+  connection: local
+
+  vars:
+    aws_region: us-east-1
+    old_stack_name: old-stack
+
+  tasks:
+
+    ############################################################
+    # BLOCO — VERIFICAÇÃO / DISCOVERY
+    ############################################################
+
+    - name: Bloco de verificação de APIs e stacks
+      block:
+
+        - name: Buscar APIs
+          shell: aws apigateway get-rest-apis --region {{ aws_region }} --output json
+          register: apis_raw
+
+        - name: Converter JSON
+          set_fact:
+            apis: "{{ apis_raw.stdout | from_json }}"
+
+        - name: Verificar tags de cada API
+          shell: >
+            aws apigateway get-tags
+            --region {{ aws_region }}
+            --resource-arn arn:aws:apigateway:{{ aws_region }}::/restapis/{{ item.id }}
+            --output json
+          loop: "{{ apis['items'] }}"
+          register: api_tags
+          failed_when: false
+
+        - name: Mostrar APIs com stack
+          debug:
+            msg: >
+              API {{ item.item.name }}
+              pertence à stack {{
+                (item.stdout | from_json).tags['aws:cloudformation:stack-name']
+                if 'aws:cloudformation:stack-name' in (item.stdout | from_json).tags
+                else 'SEM STACK'
+              }}
+          loop: "{{ api_tags.results }}"
+
+        - name: Construir mapa recurso -> stack
+          set_fact:
+            resource_stack_map: >-
+              {{
+                resource_stack_map | default({}) |
+                combine({
+                  api_name: stack_name
+                })
+              }}
+          vars:
+            api_name: "{{ item.item.name }}"
+            tags_json: "{{ item.stdout | from_json }}"
+            stack_name: "{{ tags_json.tags['aws:cloudformation:stack-name'] | default('SEM_STACK') }}"
+          loop: "{{ api_tags.results }}"
+
+        - name: Mostrar mapa final
+          debug:
+            var: resource_stack_map
+
+#############################################################
+
+    - name: Ler template CloudFormation
+      set_fact:
+        template_json: "{{ lookup('file', 'new-stack-2.json') | from_json }}"
+
+    - name: Construir mapa de recursos do template
+      set_fact:
+        desired_resource_map: >-
+          {{
+            desired_resource_map | default({}) |
+            combine({
+              resource_name: logical_id
+            })
+          }}
+      vars:
+        logical_id: "{{ item.key }}"
+        resource_name: "{{ item.value.Properties.Name }}"
+      loop: "{{ template_json.Resources | dict2items }}"
+
+    - name: Construir mapa de decisão
+      set_fact:
+        decision_map: >-
+          {{
+            decision_map | default({}) |
+            combine({
+              item.key: decision
+            })
+          }}
+      vars:
+        decision: >-
+          {{
+            'MIGRAR'
+            if item.key in resource_stack_map and resource_stack_map[item.key] == old_stack_name
+            else
+            'IGNORAR'
+            if item.key in resource_stack_map and resource_stack_map[item.key] != old_stack_name
+            else
+            'CRIAR'
+          }}
+      loop: "{{ desired_resource_map | dict2items }}"
+
+###################################################################################
+
+    - name: Garantir decision_map definido
+      set_fact:
+        decision_map: "{{ decision_map | default({}) }}"
+
+    - name: Inicializar filtered_resources
+      set_fact:
+        filtered_resources: {}
+
+    - name: Auditoria de decisão por recurso
+      debug:
+        msg: >-
+          Recurso={{ item.key }}
+          Ação={{ item.value }}
+          {{
+            '(será incluído no template final)'
+            if item.value in ['CRIAR','MIGRAR']
+            else
+            '(será removido do template final)'
+          }}
+      loop: "{{ decision_map | dict2items }}"
+
+    - name: Filtrar recursos do template mantendo CRIAR e MIGRAR
+      set_fact:
+        filtered_resources: >-
+          {{
+            filtered_resources |
+            combine({ logical_id: resource_body })
+          }}
+      loop: "{{ template_json.Resources | dict2items }}"
+      vars:
+        logical_id: "{{ item.key }}"
+        resource_body: "{{ item.value }}"
+        resource_name: "{{ item.value.Properties.Name }}"
+      when:
+        - resource_name in decision_map
+        - decision_map[resource_name] in ['CRIAR','MIGRAR']
+
+    - name: Filtrar recursos do template mantendo apenas CRIAR e MIGRAR
+      set_fact:
+        filtered_template: >-
+          {{
+            template_json |
+            combine({
+              'Resources': filtered_resources
+            })
+          }}
+
+    - name: Gerar template final filtrado
+      copy:
+        content: >-
+          {{
+            template_json |
+            combine({ 'Resources': filtered_resources }) |
+            to_nice_json
+          }}
+        dest: template-filtrado.json
