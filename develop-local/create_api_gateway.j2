@@ -1,0 +1,98 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "API Gateway gerado automaticamente via Jinja2",
+  "Resources": {
+    {%- for item in create_api_gateway.output.api_gateway.gateways %}
+    {%- set gw = create_api_gateway.output.api_gateway.gateways[item] -%}
+    {%- set gw_id = item | replace("-", "") %}
+    "{{ gw_id }}ApiGateway": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": "{{ gw.properties.gateway_name }}"
+      }
+    },
+
+    {%- for resource in gw.properties.resources %}
+    {%- set parts = resource.path.strip('/').split('/') -%}
+    {%- set res_id = parts | map('capitalize') | join('') | replace('{', '') | replace('}', '') -%}
+    {%- if parts | length == 1 -%}
+    {%- set parent = '{ "Fn::GetAtt": ["' + gw_id + 'ApiGateway", "RootResourceId"] }' -%}
+    {%- else -%}
+    {%- set parent_id = parts[:-1] | map('capitalize') | join('') | replace('{', '') | replace('}', '') -%}
+    {%- set parent = '{ "Ref": "' + gw_id + parent_id + 'Resource" }' -%}
+    {%- endif %}
+    "{{ gw_id }}{{ res_id }}Resource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": { "Ref": "{{ gw_id }}ApiGateway" },
+        "ParentId": {{ parent }},
+        "PathPart": "{{ parts[-1] }}"
+      }
+    },
+
+    {%- set ns_params = namespace(params=[]) -%}
+    {%- for part in parts -%}
+    {%- if '{' in part -%}
+    {%- set ns_params.params = ns_params.params + [part | replace('{', '') | replace('}', '')] -%}
+    {%- endif -%}
+    {%- endfor %}
+    {%- for method_name, method in resource.methods.items() %}
+    "{{ gw_id }}{{ res_id }}{{ method_name }}Method": {
+      "Type": "AWS::ApiGateway::Method",
+      "DependsOn": "{{ gw_id }}{{ res_id }}Resource",
+      "Properties": {
+        "RestApiId": { "Ref": "{{ gw_id }}ApiGateway" },
+        "ResourceId": { "Ref": "{{ gw_id }}{{ res_id }}Resource" },
+        "HttpMethod": "{{ method_name }}",
+        "AuthorizationType": "NONE",
+        {%- if ns_params.params %}
+        "RequestParameters": {
+          {%- for param in ns_params.params %}
+          "method.request.path.{{ param }}": true{% if not loop.last %},{% endif %}
+          {%- endfor %}
+        },
+        {%- endif %}
+        "Integration": {
+          "Type": "HTTP_PROXY",
+          "IntegrationHttpMethod": "{{ method_name }}",
+          "Uri": "{{ method.integration.uri }}"
+          {%- if ns_params.params %}
+          ,"RequestParameters": {
+            {%- for param in ns_params.params %}
+            "integration.request.path.{{ param }}": "method.request.path.{{ param }}"{% if not loop.last %},{% endif %}
+            {%- endfor %}
+          }
+          {%- endif %}
+        }
+      }
+    },
+
+    {%- endfor %}
+    {%- endfor %}
+    {%- set ns2 = namespace(depends=[]) -%}
+    {%- for resource in gw.properties.resources -%}
+    {%- set parts = resource.path.strip('/').split('/') -%}
+    {%- set res_id = parts | map('capitalize') | join('') | replace('{', '') | replace('}', '') -%}
+    {%- for method_name in resource.methods.keys() -%}
+    {%- set ns2.depends = ns2.depends + ['"' + gw_id + res_id + method_name + 'Method"'] -%}
+    {%- endfor -%}
+    {%- endfor %}
+    "{{ gw_id }}Deployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "DependsOn": [{{ ns2.depends | join(', ') }}],
+      "Properties": {
+        "RestApiId": { "Ref": "{{ gw_id }}ApiGateway" }
+      }
+    },
+    
+    "{{ gw_id }}Stage": {
+      "Type": "AWS::ApiGateway::Stage",
+      "Properties": {
+        "RestApiId": { "Ref": "{{ gw_id }}ApiGateway" },
+        "DeploymentId": { "Ref": "{{ gw_id }}Deployment" },
+        "StageName": "{{ gw.properties.stage_name }}"
+      }
+    }{% if not loop.last %},{% endif %}
+    {%- endfor %}
+  }
+}

@@ -1,0 +1,22 @@
+api_gateway:
+  gateways:
+    gateway1:
+      properties:
+        gateway_name: gateway-teste-1
+        stage_name: dev
+        resources:
+          - path: "/admin"
+            methods:
+              GET:
+                integration:
+                  uri: "https://jsonplaceholder.typicode.com/users"
+          - path: "/admin/users"
+            methods:
+              GET:
+                integration:
+                  uri: "https://jsonplaceholder.typicode.com/users"
+          - path: "/admin/users/{id}"
+            methods:
+              GET:
+                integration:
+                  uri: "https://jsonplaceholder.typicode.com/users/{id}"

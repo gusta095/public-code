@@ -1,0 +1,23 @@
+---
+- name: Deploy API Gateway
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Carregar interface.yml
+      ansible.builtin.set_fact:
+        create_api_gateway:
+          output: "{{ lookup('file', 'interface.yml') | from_yaml }}"
+
+    - name: Gerar CloudFormation JSON
+      ansible.builtin.template:
+        src: create_api_gateway.j2
+        dest: api_gateway_generated.json
+
+    - name: Apply CloudFormation
+      amazon.aws.cloudformation:
+        stack_name: api-gateway-stack
+        state: present
+        region: us-east-1
+        template: api_gateway_generated.json
