@@ -4,7 +4,7 @@ api_gateway:
       properties:
         gateway_name: gateway-teste-1
         stage_name: dev
-        resources:
+        resource:
           - path: "/admin"
             methods:
               GET:

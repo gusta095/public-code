@@ -4,11 +4,25 @@
     "{{ item | replace("-", "") }}ApiGateway": {
       "Type": "AWS::ApiGateway::RestApi",
       "Properties": {
-        "Name": "{{ create_api_gateway.output.api_gateway.gateways[item].properties.gateway_name }}"
+        "Name": "{{ create_api_gateway.output.api_gateway.gateways[item].properties.gateway_name }}",
+        "EndpointConfiguration": {
+          "Types": ["PRIVATE"]
+        },
+        "Policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": "execute-api:Invoke",
+              "Resource": "execute-api:/*"
+            }
+          ]
+        }
       }
     },
 
-    {%- for resource in create_api_gateway.output.api_gateway.gateways[item].properties.resources %}
+    {%- for resource in create_api_gateway.output.api_gateway.gateways[item].properties.resource %}
     {%- set parts = resource.path.strip('/').split('/') -%}
     {%- set res_id = parts | map('capitalize') | join('') | replace('{', '') | replace('}', '') -%}
     {%- if parts | length == 1 -%}
@@ -66,7 +80,7 @@
     {%- endfor %}
     {%- endfor %}
     {%- set ns2 = namespace(depends=[]) -%}
-    {%- for resource in create_api_gateway.output.api_gateway.gateways[item].properties.resources -%}
+    {%- for resource in create_api_gateway.output.api_gateway.gateways[item].properties.resource -%}
     {%- set parts = resource.path.strip('/').split('/') -%}
     {%- set res_id = parts | map('capitalize') | join('') | replace('{', '') | replace('}', '') -%}
     {%- for method_name in resource.methods.keys() -%}
