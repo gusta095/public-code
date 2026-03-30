@@ -102,6 +102,30 @@
         "DeploymentId": { "Ref": "{{ item | replace("-", "") }}Deployment" },
         "StageName": "{{ create_api_gateway.output.api_gateway.gateways[item].properties.stage_name }}"
       }
+    },
+
+    "{{ item | replace("-", "") }}DomainName": {
+      "Type": "AWS::ApiGateway::DomainNameV2",
+      "Properties": {
+        "DomainName": "{{ create_api_gateway.output.api_gateway.gateways[item].properties.domain_name }}",
+        "CertificateArn": "{{ create_api_gateway.output.api_gateway.gateways[item].properties.certificate_arn }}",
+        "SecurityPolicy": "TLS_1_2",
+        "EndpointConfiguration": {
+          "Types": ["PRIVATE"],
+          "IpAddressType": "dualstack"
+        }
+      }
+    },
+
+    "{{ item | replace("-", "") }}BasePathMapping": {
+      "Type": "AWS::ApiGateway::BasePathMappingV2",
+      "DependsOn": ["{{ item | replace("-", "") }}DomainName", "{{ item | replace("-", "") }}Stage"],
+      "Properties": {
+        "DomainNameArn": { "Ref": "{{ item | replace("-", "") }}DomainName" },
+        "RestApiId": { "Ref": "{{ item | replace("-", "") }}ApiGateway" },
+        "Stage": "{{ create_api_gateway.output.api_gateway.gateways[item].properties.stage_name }}",
+        "BasePath": "{{ create_api_gateway.output.api_gateway.gateways[item].properties.base_path }}"
+      }
     }{% if not loop.last %},{% endif %}
     {%- endfor %}
   }

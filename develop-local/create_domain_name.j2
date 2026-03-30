@@ -1,0 +1,19 @@
+{
+  "Resources": {
+    {%- for item in create_domain_name.output.api_gateway_domain_name.domain_names %}
+    {%- set props = create_domain_name.output.api_gateway_domain_name.domain_names[item].properties %}
+    "{{ item | replace("-", "") }}DomainName": {
+      "Type": "AWS::ApiGateway::DomainNameV2",
+      "Properties": {
+        "DomainName": "{{ props.domain_name }}",
+        "CertificateArn": "{{ props.certificate_arn }}",
+        "SecurityPolicy": "TLS_1_2",
+        "EndpointConfiguration": {
+          "Types": ["PRIVATE"],
+          "IpAddressType": "dualstack"
+        }
+      }
+    }{% if not loop.last %},{% endif %}
+    {%- endfor %}
+  }
+}

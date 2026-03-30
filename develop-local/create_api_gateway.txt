@@ -1,0 +1,108 @@
+{
+  "Resources": {
+    {%- for item in create_api_gateway.output.api_gateway.gateways %}
+    "{{ item | replace("-", "") }}ApiGateway": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": "{{ create_api_gateway.output.api_gateway.gateways[item].properties.gateway_name }}",
+        "EndpointConfiguration": {
+          "Types": ["PRIVATE"]
+        },
+        "Policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": "execute-api:Invoke",
+              "Resource": "execute-api:/*"
+            }
+          ]
+        }
+      }
+    },
+
+    {%- for resource in create_api_gateway.output.api_gateway.gateways[item].properties.resource %}
+    {%- set parts = resource.path.strip('/').split('/') -%}
+    {%- set res_id = parts | map('capitalize') | join('') | replace('{', '') | replace('}', '') -%}
+    {%- if parts | length == 1 -%}
+    {%- set parent = '{ "Fn::GetAtt": ["' + (item | replace("-", "")) + 'ApiGateway", "RootResourceId"] }' -%}
+    {%- else -%}
+    {%- set parent_id = parts[:-1] | map('capitalize') | join('') | replace('{', '') | replace('}', '') -%}
+    {%- set parent = '{ "Ref": "' + (item | replace("-", "")) + parent_id + 'Resource" }' -%}
+    {%- endif %}
+    "{{ item | replace("-", "") }}{{ res_id }}Resource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": { "Ref": "{{ item | replace("-", "") }}ApiGateway" },
+        "ParentId": {{ parent }},
+        "PathPart": "{{ parts[-1] }}"
+      }
+    },
+
+    {%- set ns_params = namespace(params=[]) -%}
+    {%- for part in parts -%}
+    {%- if '{' in part -%}
+    {%- set ns_params.params = ns_params.params + [part | replace('{', '') | replace('}', '')] -%}
+    {%- endif -%}
+    {%- endfor %}
+    {%- for method_name, method in resource.methods.items() %}
+    "{{ item | replace("-", "") }}{{ res_id }}{{ method_name }}Method": {
+      "Type": "AWS::ApiGateway::Method",
+      "DependsOn": "{{ item | replace("-", "") }}{{ res_id }}Resource",
+      "Properties": {
+        "RestApiId": { "Ref": "{{ item | replace("-", "") }}ApiGateway" },
+        "ResourceId": { "Ref": "{{ item | replace("-", "") }}{{ res_id }}Resource" },
+        "HttpMethod": "{{ method_name }}",
+        "AuthorizationType": "NONE",
+        {%- if ns_params.params %}
+        "RequestParameters": {
+          {%- for param in ns_params.params %}
+          "method.request.path.{{ param }}": true{% if not loop.last %},{% endif %}
+          {%- endfor %}
+        },
+        {%- endif %}
+        "Integration": {
+          "Type": "HTTP_PROXY",
+          "IntegrationHttpMethod": "{{ method_name }}",
+          "Uri": "{{ method.integration.uri }}"
+          {%- if ns_params.params %}
+          ,"RequestParameters": {
+            {%- for param in ns_params.params %}
+            "integration.request.path.{{ param }}": "method.request.path.{{ param }}"{% if not loop.last %},{% endif %}
+            {%- endfor %}
+          }
+          {%- endif %}
+        }
+      }
+    },
+
+    {%- endfor %}
+    {%- endfor %}
+    {%- set ns2 = namespace(depends=[]) -%}
+    {%- for resource in create_api_gateway.output.api_gateway.gateways[item].properties.resource -%}
+    {%- set parts = resource.path.strip('/').split('/') -%}
+    {%- set res_id = parts | map('capitalize') | join('') | replace('{', '') | replace('}', '') -%}
+    {%- for method_name in resource.methods.keys() -%}
+    {%- set ns2.depends = ns2.depends + ['"' + (item | replace("-", "")) + res_id + method_name + 'Method"'] -%}
+    {%- endfor -%}
+    {%- endfor %}
+    "{{ item | replace("-", "") }}Deployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "DependsOn": [{{ ns2.depends | join(', ') }}],
+      "Properties": {
+        "RestApiId": { "Ref": "{{ item | replace("-", "") }}ApiGateway" }
+      }
+    },
+
+    "{{ item | replace("-", "") }}Stage": {
+      "Type": "AWS::ApiGateway::Stage",
+      "Properties": {
+        "RestApiId": { "Ref": "{{ item | replace("-", "") }}ApiGateway" },
+        "DeploymentId": { "Ref": "{{ item | replace("-", "") }}Deployment" },
+        "StageName": "{{ create_api_gateway.output.api_gateway.gateways[item].properties.stage_name }}"
+      }
+    }{% if not loop.last %},{% endif %}
+    {%- endfor %}
+  }
+}

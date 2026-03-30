@@ -21,3 +21,20 @@
         state: present
         region: us-east-1
         template: api_gateway_generated.json
+
+    # - name: Carregar interface.yml para domain name
+    #   ansible.builtin.set_fact:
+    #     create_domain_name:
+    #       output: "{{ lookup('file', 'interface.yml') | from_yaml }}"
+
+    # - name: Gerar CloudFormation JSON para Domain Name
+    #   ansible.builtin.template:
+    #     src: create_domain_name.j2
+    #     dest: domain_name_generated.json
+
+    # - name: Apply CloudFormation Domain Name
+    #   amazon.aws.cloudformation:
+    #     stack_name: api-gateway-domain-name-stack
+    #     state: present
+    #     region: us-east-1
+    #     template: domain_name_generated.json
