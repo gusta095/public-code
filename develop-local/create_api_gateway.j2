@@ -12,6 +12,17 @@
           "Version": "2012-10-17",
           "Statement": [
             {
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "execute-api:Invoke",
+              "Resource": "execute-api:/*",
+              "Condition": {
+                "StringNotEquals": {
+                  "aws:sourceVpce": "{{ create_api_gateway.output.api_gateway.gateways[item].properties.vpce_id }}"
+                }
+              }
+            },
+            {
               "Effect": "Allow",
               "Principal": "*",
               "Action": "execute-api:Invoke",
@@ -126,7 +137,43 @@
         "Stage": "{{ create_api_gateway.output.api_gateway.gateways[item].properties.stage_name }}",
         "BasePath": "{{ create_api_gateway.output.api_gateway.gateways[item].properties.base_path }}"
       }
-    }{% if not loop.last %},{% endif %}
+    },
+
+    "{{ item | replace("-", "") }}DomainAccessAssociation": {
+      "Type": "AWS::ApiGateway::DomainNameAccessAssociation",
+      "DependsOn": "{{ item | replace("-", "") }}DomainName",
+      "Properties": {
+        "DomainNameArn": { "Ref": "{{ item | replace("-", "") }}DomainName" },
+        "AccessAssociationSource": "{{ create_api_gateway.output.api_gateway.gateways[item].properties.vpce_id }}",
+        "AccessAssociationSourceType": "VPCE"
+      }
+    }
+    {%- endfor %}
+  },
+  
+  "Outputs": {
+    {%- for item in create_api_gateway.output.api_gateway.gateways %}
+    {%- set gw_last = loop.last -%}
+    {%- set stage = create_api_gateway.output.api_gateway.gateways[item].properties.stage_name -%}
+    {%- for resource in create_api_gateway.output.api_gateway.gateways[item].properties.resource %}
+    {%- set res_last = loop.last -%}
+    {%- set parts = resource.path.strip('/').split('/') -%}
+    {%- set res_id = parts | map('capitalize') | join('') | replace('{', '') | replace('}', '') -%}
+    {%- set domain = create_api_gateway.output.api_gateway.gateways[item].properties.domain_name -%}
+    {%- set base_path = create_api_gateway.output.api_gateway.gateways[item].properties.base_path -%}
+    {%- for method_name, method in resource.methods.items() %}
+    "{{ item | replace("-", "") }}{{ res_id }}{{ method_name }}URL": {
+      "Description": "{{ method_name }} {{ resource.path }} (invoke)",
+      "Value": {
+        "Fn::Sub": ["https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com/{{ stage }}{{ resource.path }}", {"ApiId": {"Ref": "{{ item | replace('-', '') }}ApiGateway"}}]
+      }
+    },
+    "{{ item | replace("-", "") }}{{ res_id }}{{ method_name }}DomainURL": {
+      "Description": "{{ method_name }} {{ resource.path }} (domain)",
+      "Value": "https://{{ domain }}/{{ base_path }}{{ resource.path }}"
+    }{% if not (loop.last and res_last and gw_last) %},{% endif %}
+    {%- endfor %}
+    {%- endfor %}
     {%- endfor %}
   }
 }

@@ -5,8 +5,9 @@ api_gateway:
         gateway_name: gateway-teste-1
         stage_name: dev
         domain_name: gustalab.xyz
-        certificate_arn: "arn:aws:acm:us-east-1:93694374xxxx:certificate/9a8f9b5f-e83b-xxxxxxxx-9f6084f5d5bf"
+        certificate_arn: "arn:aws:acm:us-east-1:936943748055:certificate/9a8f9b5f-e83b-46e3-bcb4-9f6084f5d5bf"
         base_path: api
+        vpce_id: vpce-01b20a93002d40976
         resource:
           - path: "/admin"
             methods:
