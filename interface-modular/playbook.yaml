@@ -1,0 +1,19 @@
+---
+- name: Separar interface.yml em arquivos por recurso
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Carregar interface.yml
+      set_fact:
+        interface: "{{ lookup('file', 'interface.yml') | from_yaml }}"
+
+    - name: Gerar arquivo separado para cada recurso
+      copy:
+        dest: "./{{ item.key }}.yml"
+        content: "{{ { item.key: item.value } | to_nice_yaml(indent=2) }}"
+      loop: "{{ interface | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+

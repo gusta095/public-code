@@ -1,0 +1,17 @@
+recurso_de_exemplo_1:
+  exemplos:
+    exemplo1:
+      properties:
+        exemplo_name: exemplo-1
+
+recurso_de_exemplo_2:
+  exemplos:
+    exemplo1:
+      properties:
+        exemplo_name: exemplo-2
+
+recurso_de_exemplo_3:
+  exemplos:
+    exemplo1:
+      properties:
+        exemplo_name: exemplo-3
