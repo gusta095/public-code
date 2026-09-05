@@ -1,22 +1,3 @@
-terraform {
-  required_version = ">= 1.5.0"
-
-  required_providers {
-    databricks = {
-      source  = "databricks/databricks"
-      version = "~> 1.128"
-    }
-  }
-}
-
-provider "databricks" {
-  host = var.databricks_host
-
-  # Recomendo OAuth/M2M em ambiente real.
-  # Para laboratório, você pode configurar
-  # DATABRICKS_HOST / DATABRICKS_TOKEN.
-}
-
 # ---------------------------------------------------------
 # Lakebase Project
 # ---------------------------------------------------------
@@ -29,8 +10,9 @@ resource "databricks_postgres_project" "this" {
     display_name = var.project_name
 
     default_endpoint_settings = {
-      autoscaling_limit_min_cu = 1.0
-      autoscaling_limit_max_cu = 4.0
+      autoscaling_limit_min_cu = 0.5
+      autoscaling_limit_max_cu = 0.5
+      suspend_timeout_duration = "60s"
     }
   }
 }
@@ -39,8 +21,11 @@ resource "databricks_postgres_project" "this" {
 # Branch
 # ---------------------------------------------------------
 
-resource "databricks_postgres_branch" "main" {
-  branch_id = "main"
+# O project já provisiona automaticamente um branch default "production"
+# ao ser criado — replace_existing adota esse branch em vez de criar um
+# segundo (evita duplicidade de branch/endpoint e custo dobrado).
+resource "databricks_postgres_branch" "production" {
+  branch_id = "production"
 
   parent = databricks_postgres_project.this.name
 
@@ -58,7 +43,7 @@ resource "databricks_postgres_branch" "main" {
 resource "databricks_postgres_role" "app" {
   role_id = "app"
 
-  parent = databricks_postgres_branch.main.name
+  parent = databricks_postgres_branch.production.name
 
   spec = {
     postgres_role = "app"
@@ -80,7 +65,7 @@ resource "databricks_postgres_role" "app" {
 resource "databricks_postgres_database" "app" {
   database_id = "app"
 
-  parent = databricks_postgres_branch.main.name
+  parent = databricks_postgres_branch.production.name
 
   spec = {
     postgres_database = "app"
@@ -96,15 +81,22 @@ resource "databricks_postgres_database" "app" {
 # Endpoint
 # ---------------------------------------------------------
 
-resource "databricks_postgres_endpoint" "main" {
-  endpoint_id = "main"
+# O branch já provisiona automaticamente um endpoint default "primary"
+# ao ser criado — replace_existing adota esse endpoint em vez de criar
+# um segundo (o backend só permite um endpoint read_write por branch).
+resource "databricks_postgres_endpoint" "primary" {
+  endpoint_id = "primary"
 
-  parent = databricks_postgres_branch.main.name
+  parent = databricks_postgres_branch.production.name
 
   spec = {
-    autoscaling_limit_min_cu = 1.0
-    autoscaling_limit_max_cu = 4.0
+    endpoint_type            = "ENDPOINT_TYPE_READ_WRITE"
+    autoscaling_limit_min_cu = 0.5
+    autoscaling_limit_max_cu = 0.5
+    suspend_timeout_duration = "60s"
   }
+
+  replace_existing = true
 
   depends_on = [
     databricks_postgres_database.app

@@ -3,7 +3,7 @@ output "project_name" {
 }
 
 output "branch_name" {
-  value = databricks_postgres_branch.main.name
+  value = databricks_postgres_branch.production.name
 }
 
 output "database_name" {
@@ -11,5 +11,5 @@ output "database_name" {
 }
 
 output "endpoint_name" {
-  value = databricks_postgres_endpoint.main.name
+  value = databricks_postgres_endpoint.primary.name
 }

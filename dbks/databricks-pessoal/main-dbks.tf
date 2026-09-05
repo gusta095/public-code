@@ -1,6 +1,14 @@
+resource "time_sleep" "wait_for_iam_propagation" {
+  depends_on = [aws_iam_role_policy.databricks_cross_account_policy]
+
+  create_duration = "15s"
+}
+
 resource "databricks_mws_credentials" "this" {
   credentials_name = "gustalab-dbks-credentials"
   role_arn         = aws_iam_role.databricks_cross_account.arn
+
+  depends_on = [time_sleep.wait_for_iam_propagation]
 }
 
 resource "databricks_mws_storage_configurations" "this" {
@@ -29,4 +37,14 @@ resource "databricks_mws_workspaces" "this" {
   token {
     comment = "Terraform managed token"
   }
+}
+
+data "databricks_user" "admin" {
+  user_name = var.databricks_admin_email
+}
+
+resource "databricks_mws_permission_assignment" "admin" {
+  workspace_id = databricks_mws_workspaces.this.workspace_id
+  principal_id = data.databricks_user.admin.id
+  permissions  = ["ADMIN"]
 }

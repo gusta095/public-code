@@ -21,3 +21,9 @@ variable "databricks_subnet_ids" {
   type        = list(string)
   default     = ["subnet-xxxxxxxxxxxxxxxxx", "subnet-xxxxxxxxxxxxxxxxx"]
 }
+
+variable "databricks_admin_email" {
+  description = "E-mail do usuário que receberá acesso ADMIN no workspace"
+  type        = string
+  default     = "user@example.com"
+}

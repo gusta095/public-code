@@ -60,7 +60,11 @@ resource "aws_iam_role" "databricks_cross_account" {
         Principal = {
           AWS = "arn:aws:iam::414351767826:root"
         }
-        Condition = {}
+        Condition = {
+          StringEquals = {
+            "sts:ExternalId" = var.databricks_account_id
+          }
+        }
       }
     ]
   })
