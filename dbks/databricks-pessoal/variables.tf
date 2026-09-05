@@ -15,3 +15,9 @@ variable "databricks_vpc" {
   type        = string
   default     = "vpc-0f1c78c8d075xxxxx"
 }
+
+variable "databricks_subnet_ids" {
+  description = "Subnet IDs para o Databricks network"
+  type        = list(string)
+  default     = ["subnet-xxxxxxxxxxxxxxxxx", "subnet-xxxxxxxxxxxxxxxxx"]
+}

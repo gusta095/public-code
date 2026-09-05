@@ -13,13 +13,13 @@ resource "databricks_mws_networks" "this" {
   account_id         = var.databricks_account_id
   network_name       = "gustalab-dbks-network"
   security_group_ids = [aws_security_group.databricks_sg.id]
-  subnet_ids         = ["subnet-0fe686cf6fc66e96f", "subnet-010c553ad47b195cb"]
+  subnet_ids         = var.databricks_subnet_ids
   vpc_id             = var.databricks_vpc
 }
 
 resource "databricks_mws_workspaces" "this" {
   account_id      = var.databricks_account_id
-  aws_region      = "us-east-1" 
+  aws_region      = var.region
   workspace_name  = "gustalab-dbks-sandbox"
 
   credentials_id           = databricks_mws_credentials.this.credentials_id
