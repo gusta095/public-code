@@ -1,7 +1,7 @@
 variable "databricks_account_id" {
   description = "Account ID databricks"
   type        = string
-  default     = "4a4cb85a-xxxx-4f16-9480-23d653bdb5fa"
+  default     = "4a4cb85a-xxxx-xxxx-xxxx-23d653bdb5fa"
 }
 
 variable "region" {
