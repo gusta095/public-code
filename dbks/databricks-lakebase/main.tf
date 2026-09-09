@@ -37,6 +37,30 @@ resource "databricks_postgres_branch" "production" {
 }
 
 # ---------------------------------------------------------
+# Branch: develop
+# ---------------------------------------------------------
+
+# Branch nova (não é a default do project) — sem replace_existing.
+# Fork da production: nasce com role/database/dados copiados por
+# copy-on-write no momento da criação.
+# ttl: branch descartável, expira sozinha após a duração (7 dias).
+# ttl / expire_time / no_expiry são mutuamente exclusivos.
+resource "databricks_postgres_branch" "develop" {
+  branch_id = "develop"
+
+  parent = databricks_postgres_project.this.name
+
+  spec = {
+    ttl           = "604800s" # 7 dias
+    source_branch = databricks_postgres_branch.production.name
+  }
+
+  depends_on = [
+    databricks_postgres_database.app
+  ]
+}
+
+# ---------------------------------------------------------
 # Role
 # ---------------------------------------------------------
 
@@ -101,4 +125,25 @@ resource "databricks_postgres_endpoint" "primary" {
   depends_on = [
     databricks_postgres_database.app
   ]
+}
+
+# ---------------------------------------------------------
+# Endpoint: develop
+# ---------------------------------------------------------
+
+# O branch develop também provisiona um endpoint default "primary" —
+# replace_existing adota esse endpoint em vez de criar um segundo.
+resource "databricks_postgres_endpoint" "develop_primary" {
+  endpoint_id = "primary"
+
+  parent = databricks_postgres_branch.develop.name
+
+  spec = {
+    endpoint_type            = "ENDPOINT_TYPE_READ_WRITE"
+    autoscaling_limit_min_cu = 0.5
+    autoscaling_limit_max_cu = 0.5
+    suspend_timeout_duration = "60s"
+  }
+
+  replace_existing = true
 }

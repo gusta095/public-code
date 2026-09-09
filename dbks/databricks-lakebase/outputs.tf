@@ -13,3 +13,11 @@ output "database_name" {
 output "endpoint_name" {
   value = databricks_postgres_endpoint.primary.name
 }
+
+output "develop_branch_name" {
+  value = databricks_postgres_branch.develop.name
+}
+
+output "develop_endpoint_name" {
+  value = databricks_postgres_endpoint.develop_primary.name
+}
